@@ -1,14 +1,25 @@
 from abc import ABC, abstractmethod
+import PySimpleGUI as sg
+import time
 
 
 class TelaAbstrata (ABC):
     @abstractmethod
     def __init__(self):
+        self.__window = None
         pass
 
     @abstractmethod
     def tela_opcoes():
         pass
+
+    @property
+    def window(self):
+        return self.__window
+
+    @window.setter
+    def window(self, window):
+        self.__window = window
 
     def verificarInt(self, talvezint: int):
         try:
@@ -32,8 +43,11 @@ class TelaAbstrata (ABC):
         except:
             return False
     
-    def mostra_mensagem(self, mensagem: str):
-        print (mensagem)
+    def mostra_mensagem(self, mensagem: str, pop = True):
+        if pop == True:
+            sg.popup_annoying(mensagem)
+        else:
+            print (mensagem)
 
     def verifica_opção(self, ints_validos = []):
         while True:
