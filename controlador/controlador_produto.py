@@ -1,224 +1,193 @@
-import PySimpleGUI as sg
+from dao.produto_dao import ProdutoDAO
+from entidade.item_carrinho import ItemCarrinho
 from entidade.produto import Produto
 from limite.tela_produto import TelaProduto
-from excecao.produtonaoencontrado import ProdutoNaoEncontradoException
-from DAOs.produtoDAO import ProdutoDAO
 
-class ControladorProduto():
 
-    def __init__(self, controlador_sistema) -> None:
+class ControladorProduto:
+    def __init__(self, controlador_sistema, dao=None, tela=None):
+        # dao e tela são injetáveis para os testes poderem rodar sem interface
+        # gráfica e sem escrever na base de verdade.
         self.__controlador_sistema = controlador_sistema
-        self.__produtos_DAO = ProdutoDAO()
-        self.__tela = TelaProduto()
+        self.__dao = dao if dao is not None else ProdutoDAO()
+        self.__tela = tela if tela is not None else TelaProduto()
 
-    def menu(self):
-        """
-        print("1 - Incluir Produto")
-        print("2 - Alterar Produto")
-        print("3 - Listar Produtos")
-        print("4 - Excluir Produto")
-        print("0 - Retornar")
-        """
-        switcher = {0: self.finalizar,
-                    1: self.incluir_produto,
-                    2: self.alterar_produto,
-                    3: self.listar_produtos,
-                    4: self.excluir_produto,
-                    5: self.estocar}
-        while True:  
-            opção = self.__tela.tela_opcoes()
-            if opção == 0:
-                break
-            funcao_escolhida = switcher[opção]
-            funcao_escolhida()
+    def abre_tela(self):
+        acoes = {
+            1: self.incluir_produto,
+            2: self.alterar_produto,
+            3: self.listar_produtos,
+            4: self.excluir_produto,
+            5: self.estocar,
+        }
+        while True:
+            opcao = self.__tela.tela_opcoes()
+            if opcao == 0:
+                return
+            acoes[opcao]()
 
+    # --- consultas ----------------------------------------------------------
 
-    def pega_produto_por_id(self, id: int, verif = False):
-        try:
-            if self.__produtos_DAO.get(id) is not None:
-                return self.__produtos_DAO.get(id)
-            else:
-                raise ProdutoNaoEncontradoException
-        except ProdutoNaoEncontradoException:
-            if id == 0:
-                return None
-            if verif == False:
-                self.__tela.mostra_mensagem(f"Não há produto com id {id}. Você inseriu o valor correto? "\
-                                            f"Você também pode digitar '0' para voltar ao menu.")
+    def pega_produto(self, produto_id: int):
+        return self.__dao.get(produto_id)
+
+    def listar_produtos(self, incluir_esgotados: bool = True):
+        produtos = sorted(self.__dao.get_all(), key=lambda p: p.id)
+        if not incluir_esgotados:
+            produtos = [p for p in produtos if not p.esgotado]
+        self.__tela.lista_produtos(
+            [
+                {
+                    "id": p.id,
+                    "nome": p.nome,
+                    "preco": p.preco,
+                    "unidade": p.unidade.value,
+                    "estoque": p.estoque,
+                }
+                for p in produtos
+            ]
+        )
+
+    # --- cadastro -----------------------------------------------------------
 
     def incluir_produto(self):
         dados = self.__tela.entrar_dados_produto()
-        if dados['unidade'] in ("Unidade", "Unitário", "Unidades", "unidade", "unitário", "unidades"):  # Padroniza o unitário e arredonda estoque se for
-            dados['unidade'] = "Unidade(s)"
-            dados['estoque'] = round(dados["estoque"])
-        for produto in self.__produtos_DAO.get_all():
-            if produto['produto'].nome == dados['nome']: # Se já existe produto com esse nome, o estoque inserido é adicionado no produto
-                produto['estoque'] += dados['estoque']
-                break
-        else:
-            id = len(self.__produtos_DAO.get_all())+1 # Essas próximas linhas servem para pegar o maior número para ser ID do produto
-            try:
-                if id > list(self.__produtos_DAO.get_all())[-1]['produto'].id:
-                    pass
-                elif id <= list(self.__produtos_DAO.get_all())[-1]['produto'].id:
-                    id = list(self.__produtos_DAO.get_all())[-1]['produto'].id + 1
-            except IndexError:
-                pass
-            self.__produtos_DAO.add({'produto': Produto(dados["nome"], id, dados["preco"], dados["unidade"]),
-                                    'estoque': dados["estoque"]})
-            self.__tela.mostra_mensagem("Produto registrado com sucesso!")
-    
-    def alterar_produto(self):
-        self.listar_produtos()
-        id = self.__tela.pega_id()
-        produto = self.pega_produto_por_id(id)
-        while produto is None and id != 0:
-            id = self.__tela.pega_id()
-            if id == 0:
-                break
-            produto = self.pega_produto_por_id(id)
-        if id != 0:
-            dados = self.__tela.entrar_dados_produto()
-            if dados is None:
-                return
-            if dados["unidade"] in ("Unidade", "Unitário", "Unidades", "unidade", "unitário", "unidades"):
-                dados["unidade"] = "Unidade(s)"
-                dados["estoque"] = round(dados["estoque"])
-            id = produto['produto'].id
-            self.__produtos_DAO.remove(id)
-            print (dados)
-            print (produto)
-            self.__produtos_DAO.add = ({'produto': Produto(dados["nome"], id, dados["preco"], dados["unidade"]),
-                                    'estoque': dados["estoque"]})
-            self.__tela.mostra_mensagem("Produto alterado com sucesso!")
+        if dados is None:
+            return
 
-    def listar_produtos(self, esgotados= True):
-        lista_de_produtos = []
-        if len(self.__produtos_DAO.get_all()) != 0:
-            for pacote in self.__produtos_DAO.get_all():
-                if esgotados == False and pacote['estoque'] == 0:
-                    pass
-                else:
-                    lista_de_produtos.append({"nome": pacote['produto'].nome, 
-                                              "id": pacote['produto'].id,      
-                                              "preco": pacote['produto'].preco,
-                                              "estoque": pacote['estoque'],
-                                              "unidade": pacote['produto'].unidade
-                                            })
-            self.__tela.listar_produtos(lista_de_produtos)
-        else:
-            self.__tela.listar_produtos(None)
+        existente = self.__dao.pega_por_nome(dados["nome"])
+        if existente is not None:
+            if dados["estoque"] > 0:
+                existente.repor(dados["estoque"])
+                self.__dao.update(existente)
+            self.__tela.mostra_mensagem(
+                f"Já existe o produto '{existente.nome}' (id {existente.id}). "
+                f"O estoque informado foi somado ao dele: agora são "
+                f"{existente.estoque:g} {existente.unidade}."
+            )
+            return
+
+        produto = Produto(
+            id=self.__dao.reserva_id(),
+            nome=dados["nome"],
+            preco=dados["preco"],
+            unidade=dados["unidade"],
+            estoque=dados["estoque"],
+        )
+        self.__dao.add(produto)
+        self.__tela.mostra_mensagem(f"Produto '{produto.nome}' registrado com o id {produto.id}.")
+
+    def alterar_produto(self):
+        #Altera o produto no lugar.
+        self.listar_produtos()
+        produto = self._seleciona_produto("Alterar produto")
+        if produto is None:
+            return
+
+        dados = self.__tela.alterar_dados_produto(
+            {"nome": produto.nome, "preco": produto.preco, "unidade": produto.unidade.value}
+        )
+        if dados is None:
+            return
+
+        homonimo = self.__dao.pega_por_nome(dados["nome"])
+        if homonimo is not None and homonimo.id != produto.id:
+            self.__tela.mostra_erro(
+                f"Já existe outro produto chamado '{homonimo.nome}' (id {homonimo.id})."
+            )
+            return
+
+        produto.nome = dados["nome"]
+        produto.preco = dados["preco"]
+        produto.unidade = dados["unidade"]
+        self.__dao.update(produto)
+        self.__tela.mostra_mensagem(f"Produto '{produto.nome}' alterado com sucesso!")
 
     def excluir_produto(self):
         self.listar_produtos()
-        id = self.__tela.pega_id()
-        produto = self.pega_produto_por_id(id)
-        while produto is None and id != 0:
-            id = self.__tela.pega_id()
-            if id == 0:
-                break
-            produto = self.pega_produto_por_id(id)
-        if produto == None:
-            self.__tela.mostra_mensagem(f"O produto com o id {id} não existe")
-        else:
-            self.__produtos_DAO.remove(produto['produto'].id)
-            del produto
-            self.__tela.mostra_mensagem("Produto deletado com sucesso!")
+        produto = self._seleciona_produto("Excluir produto")
+        if produto is None:
+            return
+        # Excluir um produto que está em algum carrinho deixaria a devolução
+        # sem para onde devolver o estoque.
+        if self.__controlador_sistema.controlador_carrinho.produto_em_uso(produto.id):
+            self.__tela.mostra_erro(
+                f"'{produto.nome}' está em algum carrinho aberto e não pode ser excluído agora."
+            )
+            return
 
-    """def ordenar_id(self):
-        for i in range(len(self.__produtos)):
-            self.__produtos[i]['produto'].id = i+1"""
+        self.__dao.remove(produto.id)
+        self.__tela.mostra_mensagem(f"Produto '{produto.nome}' excluído com sucesso!")
 
     def estocar(self):
         self.listar_produtos()
-        id = self.__tela.pega_id()
-        produto = self.pega_produto_por_id(id)
-        while produto is None and id != 0:
-            id = self.__tela.pega_id()
-            if id == 0:
-                break
-            produto = self.pega_produto_por_id(id)
-        if id != 0:
-            quantidade = self.__tela.interacao_estoque("estocar", produto['produto'].nome)
-            if produto['produto'].unidade == "Unidade(s)":
-                self.pega_produto_por_id(id)['estoque'] += round(quantidade)
-            else:
-                self.pega_produto_por_id(id)['estoque'] += quantidade
-
-    def comprar(self): # Retorna uma lista na forma (Produto, quantia) ou ValueError caso não houver estoque suficiente
-        self.listar_produtos(esgotados=False)
-        id = self.__tela.pega_id()
-        produto = self.pega_produto_por_id(id)
-        while produto is None and id != 0:
-            id = self.__tela.pega_id()
-            if id == 0:
-                break
-            produto = self.pega_produto_por_id(id)
-        if id != 0:
-            if produto['estoque'] == 0:
-                self.__tela.mostra_mensagem("Este produto está esgotado, por favor, tente novamente mais tarde!")
-            else:
-                quantidade = self.__tela.interacao_estoque("comprar", produto['produto'].nome)
-                if produto['produto'].unidade == "Unidade(s)": # Produto Unitário
-                    if produto['estoque'] < round(quantidade): # Produto unitário sem estoque suficiente
-                        quantidade = produto['estoque']
-                        produto['estoque'] = 0
-                        self.__tela.mostra_mensagem("Não há estoque suficiente, todo o estoque possível foi adicionado ao carrinho.")
-                        return {'produto': produto['produto'],
-                                'quantidade': round(quantidade)}
-                    else: # 
-                        self.pega_produto_por_id(id)['estoque'] -= round(quantidade)
-                        return {'produto': produto['produto'],
-                                'quantidade': round(quantidade)}
-                else: # Produto não unitário
-                    if produto['estoque'] < quantidade:
-                        quantidade = produto['estoque']
-                        produto['quantidade'] = 0
-                        self.__tela.mostra_mensagem("Não há estoque suficiente, todo o estoque possível foi adicionado ao carrinho.")
-                        return {'produto': produto['produto'],
-                                'quantidade': round(quantidade)}
-                    else:
-                        produto['estoque'] -= quantidade
-                        return {'produto': produto['produto'], 
-                                'quantidade': quantidade}
-
-    def retornar_produto(self, pacote: dict): # Recebe um pacote no formato (Produto, quantidade)
-        id = pacote['produto'].id
-        ids_possiveis = [id]
+        produto = self._seleciona_produto("Estocar produto")
+        if produto is None:
+            return
+        quantidade = self.__tela.interacao_estoque("estocar", produto.nome, produto.unidade)
+        if quantidade is None:
+            return
         try:
-            produto = self.__produtos_DAO.get(id)
-            if produto is None:
-                raise ValueError
-        except: # Entra aqui quando não há um produto com id igual
-            for produto in self.__produtos_DAO.get_all():
-                if produto['produto'].nome == pacote['produto'].nome: # Não há produto com id igual mas há com o mesmo nome.
-                    produto['estoque'] += pacote['quantidade']
-                    break
-            else: # Não há nem mesmo id nem mesmo nome
-                ids_possiveis.append(len(self.__produtos_DAO.get_all())+1)
-                try:
-                    ids_possiveis.append(self.__produtos_DAO.get_all()[-1]['produto'].id +1)
-                except IndexError:
-                    pass
-                ids_possiveis.sort(reverse=True)
-                pacote['produto'].id = ids_possiveis[0]
-                self.__produtos_DAO.add(ids_possiveis[0], {'produto': pacote['produto'],
-                                        'estoque': pacote['quantidade']})
-                return None
-        else:  # Se há produto com a mesma ID
-            if produto['produto'].unidade == "Unidade(s)":
-                produto['estoque'] += round(pacote['quantidade'])
-                return None
-            else:
-                produto['estoque'] += pacote['quantidade']
-                return None
+            produto.repor(quantidade)
+        except ValueError as erro:
+            self.__tela.mostra_erro(str(erro))
+            return
+        self.__dao.update(produto)
+        self.__tela.mostra_mensagem(
+            f"Estoque de '{produto.nome}' agora é {produto.estoque:g} {produto.unidade}."
+        )
 
-    def finalizar(self):
-        self.__controlador_sistema.abre_tela()
+    # --- usado pelo controlador de carrinho ---------------------------------
 
-    def abre_tela(self):
-        lista_opcoes = {1: self.incluir_produto, 2: self.alterar_produto, 3: self.listar_produtos, 4: self.excluir_produto, 5: self.ordenar_id, 6: self.estocar, 0: self.retornar}
+    def retirar_para_carrinho(self):
+        # Escolhe um produto, desconta do estoque e devolve o ItemCarrinho.
+        # Devolve None se o usuário desistir ou se não houver o que levar.
+        
+        self.listar_produtos(incluir_esgotados=False)
+        produto = self._seleciona_produto("Comprar produto")
+        if produto is None:
+            return None
+        if produto.esgotado:
+            self.__tela.mostra_erro(f"'{produto.nome}' está esgotado.")
+            return None
 
-        continua = True
-        while continua:
-            lista_opcoes[self.__tela_cliente.tela_opcoes()]()
+        quantidade = self.__tela.interacao_estoque("comprar", produto.nome, produto.unidade)
+        if quantidade is None:
+            return None
+
+        try:
+            retirada = produto.retirar(quantidade)
+        except ValueError as erro:
+            self.__tela.mostra_erro(str(erro))
+            return None
+
+        self.__dao.update(produto)
+        if retirada < quantidade:
+            self.__tela.mostra_mensagem(
+                f"Não havia estoque suficiente. Foram levados {retirada:g} {produto.unidade}."
+            )
+        if retirada <= 0:
+            return None
+        return ItemCarrinho.de_produto(produto, retirada)
+
+    def devolver_do_carrinho(self, item: ItemCarrinho):
+        # Repõe no estoque o item que saiu de um carrinho.
+        produto = self.__dao.get(item.produto_id)
+        if produto is None:
+            raise LookupError(f"O produto de id {item.produto_id} não está mais no catálogo.")
+        produto.repor(item.quantidade)
+        self.__dao.update(produto)
+        return produto
+
+    # --- apoio --------------------------------------------------------------
+
+    def _seleciona_produto(self, titulo: str):
+        # Pede um id até achar um produto ou o usuário desistir.
+        while True:
+            produto_id = self.__tela.pega_id(titulo)
+            if produto_id is None:
+                return None
+            produto = self.__dao.get(produto_id)
+            if produto is not None:
+                return produto
+            self.__tela.mostra_erro(f"Não há produto com o id {produto_id}.")
