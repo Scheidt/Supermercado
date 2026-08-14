@@ -1,52 +1,67 @@
-from entidade.cliente import Cliente
-from entidade.produto import Produto
+from entidade import cpf as cpf_util
+from entidade.item_carrinho import ItemCarrinho
 
 
-class Carrinho():
-    def __init__(self, cliente: Cliente):
-        if (isinstance(cliente, Cliente)):
-            self.__cliente = cliente
-        else:
-            raise TypeError
-        self.__produtos = []
+class Carrinho:
+    # Carrinho de um cliente, identificado pelo CPF dele.
+    def __init__(self, cliente_cpf: str, itens=None):
+        self.__cliente_cpf = cpf_util.normaliza(cliente_cpf)
+        self.__itens: list[ItemCarrinho] = list(itens) if itens else []
 
     @property
-    def cliente(self):
-        return self.__cliente
-    
+    def cliente_cpf(self) -> str:
+        return self.__cliente_cpf
+
     @property
-    def produtos(self):
-        return self.__produtos
+    def itens(self) -> tuple:
+        # Cópia somente leitura: alterar itens é responsabilidade do carrinho.
+        return tuple(self.__itens)
 
-    @cliente.setter
-    def cliente(self, cliente: Cliente):
-        if (isinstance(cliente, Cliente)):
-            self.__cliente = cliente
-        else:
-            raise TypeError
+    @property
+    def vazio(self) -> bool:
+        return not self.__itens
 
-    def incluir_produto(self, pacote: dict):
-        produto = pacote['produto']
-        quantidade = pacote['quantidade']
-        if isinstance(produto, Produto):
-            pass
-        else:
-            raise TypeError
-        copia = self.pega_produto_por_id(produto.id)
-        if copia is None:
-            self.__produtos.append({'produto': produto,
-                                    'quantidade': quantidade})
-        else:
-            if copia['produto'].unidade == "Unitário(s)":
-                self.__produtos[self.__produtos.index(copia)]['quantidade'] += round(quantidade)
-            else:
-                self.__produtos[self.__produtos.index(copia)]['quantidade'] += quantidade
+    @property
+    def total(self) -> float:
+        return round(sum(item.subtotal for item in self.__itens), 2)
 
-    def pega_produto_por_id(self, id: int):
-        for i in range(len(self.__produtos)):
-            if id == self.__produtos[i]['produto'].id:
-                return self.__produtos[i]
-        else:
-            return None
+    def item(self, produto_id: int):
+        # Devolve o item daquele produto, ou None se não estiver no carrinho.
+        for item in self.__itens:
+            if item.produto_id == produto_id:
+                return item
+        return None
 
-    
+    def adicionar(self, item: ItemCarrinho):
+        # Inclui o item, somando à linha existente se o produto já estiver aqui.
+        if not isinstance(item, ItemCarrinho):
+            raise TypeError(f"Esperado ItemCarrinho, recebido {type(item).__name__}.")
+        existente = self.item(item.produto_id)
+        if existente is None:
+            self.__itens.append(item)
+        else:
+            existente.quantidade = existente.quantidade + item.quantidade
+
+    def remover(self, produto_id: int) -> ItemCarrinho:
+        # Tira o item do carrinho e devolve, para o estoque poder ser refeito.
+        item = self.item(produto_id)
+        if item is None:
+            raise KeyError(f"Não há produto com id {produto_id} neste carrinho.")
+        self.__itens.remove(item)
+        return item
+
+    def to_dict(self) -> dict:
+        return {
+            "cliente_cpf": self.__cliente_cpf,
+            "itens": [item.to_dict() for item in self.__itens],
+        }
+
+    @classmethod
+    def from_dict(cls, dados: dict) -> "Carrinho":
+        return cls(
+            cliente_cpf=dados["cliente_cpf"],
+            itens=[ItemCarrinho.from_dict(i) for i in dados.get("itens", [])],
+        )
+
+    def __repr__(self) -> str:
+        return f"Carrinho(cliente_cpf={self.__cliente_cpf!r}, itens={len(self.__itens)})"
