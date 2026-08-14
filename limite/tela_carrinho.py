@@ -1,132 +1,71 @@
-from limite.telaAbstrata import TelaAbstrata
-import PySimpleGUI as sg
+from entidade import cpf as cpf_util
+from limite.tela_abstrata import TelaAbstrata
+
+OPCOES = {
+    1: "Criar um novo carrinho",
+    2: "Comprar um produto",
+    3: "Devolver um produto",
+    4: "Listar carrinhos",
+    5: "Finalizar carrinho",
+    0: "Retornar",
+}
 
 
 class TelaCarrinho(TelaAbstrata):
-    def __init__(self):
-        super().__init__()
+    """Tela dos carrinhos.
 
-    def tela_opcoes(self):
-        self.init_components()
-        button, values = self.__window.Read()
-        opcao = 0
-        if values['1']:
-            opcao = 1
-        if values['2']:
-            opcao = 2
-        if values['3']:
-            opcao = 3
-        if values['4']:
-            opcao = 4
-        if values['5']:
-            opcao = 5       
-        if values['0'] or button in (None,'Cancelar'):
-            opcao = 0
-        self.close()
-        return opcao
+    A versão anterior usava `input()` e `print()` aqui dentro, no meio de um
+    aplicativo gráfico: pegar a quantidade ou o id do produto pedia digitação no
+    terminal, atrás da janela. Agora tudo passa pela mesma interface.
+    """
 
-    def close(self):
-            self.__window.Close()
+    def tela_opcoes(self) -> int:
+        return self._menu("Mercado P&P", "Carrinhos", OPCOES)
 
-    def pega_cpf(self):
-        sg.ChangeLookAndFeel('DarkTeal4')
-        layout = [
-            [sg.Text('-------- DADOS CARRINHO ----------', font=("Helvica", 25))],
-            [sg.Text('Insira o CPF do cliente', font=("Helvica", 25))],
-            [sg.Text('Cpf:', size=(15, 1)), sg.InputText('', key='cpf')],                      
-            [sg.Button('Confirmar'), sg.Cancel('Cancelar')]
+    def pega_cpf(self, titulo: str = "Selecionar carrinho"):
+        valores = self._formulario(titulo, titulo, [("cpf", "CPF do cliente:")])
+        if valores is None:
+            return None
+        try:
+            return cpf_util.normaliza(valores["cpf"])
+        except cpf_util.CpfInvalidoError:
+            self.mostra_erro("CPF inválido. Digite os 11 dígitos, com ou sem pontuação.")
+            return None
+
+    def pega_id_produto(self, titulo: str = "Selecionar produto do carrinho"):
+        valores = self._formulario(titulo, titulo, [("id", "ID do produto:")])
+        if valores is None:
+            return None
+        return self._para_inteiro(valores["id"], "O ID")
+
+    def lista_carrinhos(self, carrinhos: list):
+        if not carrinhos:
+            self.mostra_mensagem("Nenhum carrinho registrado ainda.")
+            return
+        blocos = []
+        for dados in carrinhos:
+            blocos.append(self._formata_carrinho(dados))
+        self.mostra_tabela("Lista de carrinhos", "\n\n".join(blocos))
+
+    def mostra_carrinho(self, dados: dict):
+        self.mostra_tabela(f"Carrinho de {dados['cliente_nome']}", self._formata_carrinho(dados))
+
+    @staticmethod
+    def _formata_carrinho(dados: dict) -> str:
+        linhas = [
+            f"Cliente: {dados['cliente_nome']}",
+            f"CPF:     {cpf_util.formata(dados['cliente_cpf'])}",
         ]
-        self.__window = sg.Window('Mercados P&P').Layout(layout)
-        button, values = self.open()
-        self.close()
-        cpf = values['cpf']
-        if self.verificarInt(cpf) == False:
-            sg.popup("A opção escolhida deve ser um número inteiro, por favor, tente novamente: ")
-        return int(cpf)
-
-    def pega_quantidade(self, acao: str):
-        print ("(Lembrando que se o produto for unitário, a quantidade inserida será arredondada para um número inteiro)")
-        print("\n*3")
-        print (f"Quanto de produto você deseja {acao}?")
-        quantidade = input("Insira a quantia de produto desejado: ")
-        while self.verificarFloat(quantidade) == False:
-            quantidade = input("A quantia deve ser um valor numérico, por favor, insira novamente: ")
-        return float(quantidade)
-
-    # Recebe uma lista de dicionários no formato: [
-    # {'cliente': Cliente, 'produto': [produto, produto,...]}
-    # {'cliente': Cliente, 'produto': [produto, produto,...]}
-    # {'cliente': Cliente, 'produto': [produto, produto,...]}
-    # ...]
-    def listar_carrinhos(self, lista_de_carrinhos: list):
-        string_todos_carrinhos = ""
-        if lista_de_carrinhos is not None:
-            for dados in lista_de_carrinhos:
-                string_todos_carrinhos = string_todos_carrinhos +  f"Dados do(a) cliente:" + '\n'
-                string_todos_carrinhos = string_todos_carrinhos + f"  Nome: {dados['nome']}" + '\n'
-                string_todos_carrinhos = string_todos_carrinhos + f"  CPF: {dados['cpf']}" + '\n'
-                if dados['produtos'] != 0:
-                    string_todos_carrinhos = string_todos_carrinhos +  f"{'Nome':^20}{'ID':^5}   {'Preco':^7}{'Quantidade':^9}   {'Subtotal':^9}" + '\n'
-                    for produto in dados['produtos']:
-                        string_todos_carrinhos = string_todos_carrinhos + f"\
-{produto['nome']:^20}\
-{produto['id']:^5}   \
-{produto['preco']:^7}\
-{produto['quantidade']:^9}   \
-{produto['subtotal']:^8,.2f}" + '\n'
-                    string_todos_carrinhos = string_todos_carrinhos + f"Total: {dados['total']}" + '\n'
-                else:
-                    string_todos_carrinhos = string_todos_carrinhos + "    Este carrinho está vazio, adicione alguns produtos!" + '\n'
-                string_todos_carrinhos = string_todos_carrinhos + "\n"*2
-        else:
-            string_todos_carrinhos = string_todos_carrinhos + "Não há nenhum carrinho registrado. Por favor, registre algum carrinho." + '\n'
-        sg.popup_annoying('LISTA DE CARRINHOS', string_todos_carrinhos)
-
-
-    def mostra_cliente(self, dados: dict):
-        print(f"Dados do(a) cliente:")
-        print(f"  Nome: {dados['nome']}")
-        print(f"  CPF: {dados['cpf']}")
-
-    def mostra_carrinho(self, cliente: dict, compras: dict, total: float):
-        print(f"Cliente: {cliente['nome']}")
-        print(f"CPF: {cliente['cpf']}")
-        if len(compras) != 0:
-            print(f"{'Nome':^20}{'ID':^5}   {'Preco':^7}{'Quantidade':^9}   {'Subtotal':^9}")
-            for produto in compras:
-                print(f"\
-{produto['nome']:^20}\
-{produto['id']:^5}   \
-{produto['preco']:^7}\
-{produto['quantidade']:^9}   \
-{produto['subtotal']:^8,.2f}")
-            print(f"Total = {total}")
-        else:
-            self.mostra_mensagem("Este carrinho está vazio, adicione alguns produtos!")
-
-    def pega_id_produto(self):
-        id = input("Insira a id do produto: ")
-        while self.verificarInt(id) == False:
-                id = input("A opção escolhida deve ser um número inteiro, por favor, tente novamente: ")
-        return int(id)
-
-    def init_components(self):
-        sg.ChangeLookAndFeel('DarkTeal4')
-        layout = [
-            [sg.Text('Carrinhos', font=("Helvica",25))],
-            [sg.Text('Escolha sua opção: ', font=("Helvica",15))],
-            [sg.Radio('Criar um novo carrinho',"RD1", key='1')],
-            [sg.Radio('Comprar um produto',"RD1", key='2')],
-            [sg.Radio('Devolver um Produto',"RD1", key='3')],
-            [sg.Radio('Listar carrinhos',"RD1", key='4')],
-            [sg.Radio('Finalizar carrinho',"RD1", key='5')],
-            [sg.Radio('Retonar',"RD1", key='0')],
-            [sg.Button('Confirmar'), sg.Cancel('Cancelar')]
-
-        ]
-        self.__window = sg.Window('Mercado P&P').Layout(layout)
-      
-    def open(self):
-        button, values = self.__window.Read()
-        return button, values
-
+        if not dados["itens"]:
+            linhas.append("  Este carrinho está vazio, adicione alguns produtos!")
+            return "\n".join(linhas)
+        linhas.append(f"{'ID':<5}{'Nome':<28}{'Preço':>10}{'Qtd':>10}{'Subtotal':>12}")
+        linhas.append("-" * 65)
+        for item in dados["itens"]:
+            linhas.append(
+                f"{item['produto_id']:<5}{item['nome']:<28}{item['preco_unitario']:>10,.2f}"
+                f"{item['quantidade']:>10,.3f}{item['subtotal']:>12,.2f}"
+            )
+        linhas.append("-" * 65)
+        linhas.append(f"{'Total':<43}{dados['total']:>22,.2f}")
+        return "\n".join(linhas)

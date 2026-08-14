@@ -1,111 +1,81 @@
-import PySimpleGUI as sg
-from limite.telaAbstrata import TelaAbstrata
+import FreeSimpleGUI as sg
+
+from entidade import cpf as cpf_util
+from limite.tela_abstrata import TelaAbstrata, FONTE_TITULO, LARGURA_CAMPO, LARGURA_ROTULO
+
+OPCOES = {
+    1: "Cadastrar um cliente",
+    2: "Alterar um cliente",
+    3: "Excluir um cliente",
+    4: "Listar clientes",
+    5: "Listar clientes por gasto",
+    0: "Retornar",
+}
 
 
 class TelaCliente(TelaAbstrata):
-      def __init__(self):
-            super().__init__()
+    def tela_opcoes(self) -> int:
+        return self._menu("Mercado P&P", "Clientes", OPCOES)
 
-      def tela_opcoes(self):
-        self.init_components()
-        button, values = self.__window.Read()
-        opcao = 0
-        if values['1']:
-            opcao = 1
-        if values['2']:
-            opcao = 2
-        if values['3']:
-            opcao = 3
-        if values['4']:
-            opcao = 4
-        if values['5']:
-            opcao = 5       
-        if values['0'] or button in (None,'Cancelar'):
-            opcao = 0
-        self.close()
-        return opcao
-    
-      def close(self):
-            self.__window.Close()
+    def pega_cpf(self, titulo: str = "Selecionar cliente"):
+        """Devolve o CPF com 11 dígitos, ou None se cancelar ou digitar errado."""
+        valores = self._formulario(titulo, titulo, [("cpf", "CPF:")])
+        if valores is None:
+            return None
+        return self._para_cpf(valores["cpf"])
 
-      def pega_cpf(self):
-            sg.ChangeLookAndFeel('DarkTeal4')
-            layout = [
-                  [sg.Text('-------- SELECIONAR CLIENTE ----------', font=("Helvica", 25))],
-                  [sg.Text('Digite o CPF do cliente que deseja selecionar:', font=("Helvica", 15))],
-                  [sg.Text('CPF:', size=(15, 1)), sg.InputText('', key='cpf')],
-                  [sg.Button('Confirmar'), sg.Cancel('Cancelar')]
-            ]
-            self.__window = sg.Window('Seleciona Cliente').Layout(layout)                                     
-            button, values = self.open()
-            self.close()
-            cpf = values['cpf']
-            if self.verificarInt(cpf) == False:
-                  sg.popup_annoying("Digite somente valores inteiros")
-            else:      
-                  cpf = int(values['cpf'])
-                  return cpf
+    def entrar_dados_cliente(self):
+        """Dados de um cliente novo, ou None se cancelar ou preencher errado."""
+        valores = self._formulario(
+            "Cadastro de cliente",
+            "Dados do cliente",
+            [("nome", "Nome:"), ("cpf", "CPF:")],
+        )
+        if valores is None:
+            return None
+        nome = self._texto_obrigatorio(valores["nome"], "O nome")
+        if nome is None:
+            return None
+        cpf = self._para_cpf(valores["cpf"])
+        if cpf is None:
+            return None
+        return {"nome": nome, "cpf": cpf}
 
-      def entrar_dados_cliente(self):
-            sg.ChangeLookAndFeel('DarkTeal4')
-            layout = [
-            [sg.Text('-------- DADOS CLIENTE ----------', font=("Helvica", 25))],
-            [sg.Text('Nome:', size=(15, 1)), sg.InputText('', key='nome')],
-            [sg.Text('CPF:', size=(15, 1)), sg.InputText('', key='cpf')],            
-            [sg.Button('Confirmar'), sg.Cancel('Cancelar')]
-            ]
-            self.__window = sg.Window('Mercados P&P').Layout(layout)
-
-            button, values = self.open()
-            nome = values['nome']
-            cpf = values['cpf']
-            if self.verificarString(nome) == False:
-                  sg.popup_annoying("Digite somente letras")
-            if self.verificarInt(cpf) == False:
-                  sg.popup_annoying("Digite somente números inteiros")
-            self.close()
-            cpf = int(cpf)
-            return {"nome": nome, "cpf": cpf}
-
-      def mostra_cliente(self, dados_clientes):
-         
-            string_todos_clientes = ""
-            for dado in dados_clientes:
-                  string_todos_clientes = string_todos_clientes + "NOME DO CLIENTE: " + str(dado["nome"]) + '\n'
-                  string_todos_clientes = string_todos_clientes + "CPF DO CLIENTE: " + str(dado["cpf"]) + '\n'
-                  string_todos_clientes = string_todos_clientes + "TOTAL GASTO: " + str(dado["gasto"]) + '\n\n'
-
-            sg.popup_annoying('-------- LISTA DE CLIENTES ----------', string_todos_clientes)
-           
-            
-
-      def mostra_melhores(self, dados_melhores: list):
-            string_melhores = f"{'Nome:':30}{'Gasto:':^10}\n"
-            for i in range(len(dados_melhores)):
-                  string_melhores = string_melhores + f"{dados_melhores[i][0]:30}" + f"{dados_melhores[i][1]:^10,.2f}\n"                  
-
-            sg.popup_annoying("LISTA DOS MELHORES CLIENTES", string_melhores)
-
-      def init_components(self):
-        sg.ChangeLookAndFeel('DarkTeal4')
+    def altera_nome(self, cliente_nome: str):
+        """Só o nome: o CPF identifica o cliente e não é editável."""
         layout = [
-            [sg.Text('Clientes', font=("Helvica",25))],
-            [sg.Text('Escolha sua opção: ', font=("Helvica",15))],
-            [sg.Radio('Cadastrar um cliente',"RD1", key='1')],
-            [sg.Radio('Alterar um cliente',"RD1", key='2')],
-            [sg.Radio('Excluir um cliente',"RD1", key='3')],
-            [sg.Radio('Listar clientes',"RD1", key='4')],
-            [sg.Radio('Listar clientes por gasto',"RD1", key='5')],
-            [sg.Radio('Retonar',"RD1", key='0')],
-            [sg.Button('Confirmar'), sg.Cancel('Cancelar')]
-
+            [sg.Text("Alterar cliente", font=FONTE_TITULO)],
+            [sg.Text("Nome:", size=LARGURA_ROTULO), sg.InputText(cliente_nome, key="nome", size=LARGURA_CAMPO)],
+            [sg.Button("Confirmar"), sg.Cancel("Cancelar")],
         ]
-        self.__window = sg.Window('Mercado P&P').Layout(layout)
-      
-      def open(self):
-            button, values = self.__window.Read()
-            return button, values
+        evento, valores = self._abre("Alterar cliente", layout)
+        if self._cancelou(evento, valores):
+            return None
+        return self._texto_obrigatorio(valores["nome"], "O nome")
 
-      
-      
-            
+    def lista_clientes(self, clientes: list):
+        if not clientes:
+            self.mostra_mensagem("Nenhum cliente cadastrado ainda.")
+            return
+        linhas = [f"{'CPF':<16}{'Nome':<30}{'Total gasto':>14}", "-" * 60]
+        for dados in clientes:
+            linhas.append(f"{dados['cpf']:<16}{dados['nome']:<30}{dados['total_compras']:>14,.2f}")
+        self.mostra_tabela("Lista de clientes", "\n".join(linhas))
+
+    def lista_melhores(self, clientes: list):
+        if not clientes:
+            self.mostra_mensagem("Nenhum cliente cadastrado ainda.")
+            return
+        linhas = [f"{'#':<4}{'Nome':<30}{'Total gasto':>14}", "-" * 48]
+        for posicao, dados in enumerate(clientes, start=1):
+            linhas.append(f"{posicao:<4}{dados['nome']:<30}{dados['total_compras']:>14,.2f}")
+        self.mostra_tabela("Clientes por gasto", "\n".join(linhas))
+
+    def _para_cpf(self, valor):
+        try:
+            return cpf_util.normaliza(valor)
+        except cpf_util.CpfInvalidoError:
+            self.mostra_erro(
+                "CPF inválido. Digite os 11 dígitos, com ou sem pontuação."
+            )
+            return None
