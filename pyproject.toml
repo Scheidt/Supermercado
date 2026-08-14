@@ -1,0 +1,13 @@
+[project]
+name = "mercado-pp"
+version = "1.0.0"
+description = "Sistema de supermercado em camadas: entidade, controlador, limite e dao"
+requires-python = ">=3.10"
+dependencies = ["FreeSimpleGUI>=5.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
