@@ -1,0 +1,4 @@
+# FreeSimpleGUI é o fork LGPL do PySimpleGUI 4.60.5.
+# O projeto original importava PySimpleGUI, que hoje não instala: a versão 4 saiu
+# do PyPI e a 5 pede chave de licença. A API é a mesma.
+FreeSimpleGUI>=5.2
